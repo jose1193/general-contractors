@@ -14,10 +14,14 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
-use App\Http\Resources\UserResource;
+use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
+use Illuminate\Support\Facades\Cache;
 
-
+use App\Interfaces\UsersRepositoryInterface;
+use App\Http\Requests\CreateUserRequest;
+use App\Classes\ApiResponseClass;
+use App\Http\Resources\UserResource;
 
 class UsersController extends BaseController
 {
@@ -27,48 +31,66 @@ class UsersController extends BaseController
     protected $cacheTime = 720;
     protected $userId;
 
+    private UsersRepositoryInterface $usersRepositoryInterface;
 
-    public function __construct()
-{
-   $this->middleware('check.permission:Super Admin')->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
+    public function __construct(UsersRepositoryInterface $usersRepositoryInterface)
+    {
+        // Asignar el repositorio a la propiedad privada
+        $this->usersRepositoryInterface = $usersRepositoryInterface;
 
-    $this->middleware(function ($request, $next) {
+        // Middleware para permisos
+        $this->middleware('check.permission:Super Master')->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
+        
+        // Middleware para establecer el userId y la clave de cache
+        $this->middleware(function ($request, $next) {
             $this->userId = Auth::id();
-            $this->cacheKey = 'users_' .  $this->userId . '_total_list';
+            $this->cacheKey = 'users_' . $this->userId . '_total_list';
             return $next($request);
         });
+    }
 
-}
 
     
     // SHOW LIST OF USERS
-    public function index(Request $request)
-{
-    try {
-        if (!Auth::check()) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
+
+      public function index()
+    {
+        try {
+           
+            // Invalidar y actualizar la caché con nuevos datos
+            $this->refreshCache($this->cacheKey, $this->cacheTime, function () {
+                return $this->usersRepositoryInterface->index();
+            });
+
+            // Obtener los datos actualizados de la caché
+            $data = Cache::get($this->cacheKey);
+
+            // Verifica si la colección es válida
+            if ($data === null || !is_iterable($data)) {
+                Log::warning('Data fetched from cache is null or not iterable');
+                return response()->json(['message' => 'No users found or invalid data structure'], 404);
+            }
+
+            // Transformar la colección en recursos de usuario
+            $userResources = UserResource::collection($data);
+
+            return ApiResponseClass::sendResponse($userResources, '', 200);
+
+        } catch (QueryException $e) {
+            Log::error('Database error occurred while fetching users: ' . $e->getMessage(), [
+                'exception' => $e
+            ]);
+            return response()->json(['message' => 'Database error occurred while fetching users'], 500);
+        } catch (\Exception $e) {
+            Log::error('Error occurred while fetching users: ' . $e->getMessage(), [
+                'exception' => $e
+            ]);
+            return response()->json(['message' => 'Error occurred while fetching users'], 500);
         }
-
-       
-        $users = $this->getCachedData($this->cacheKey, $this->cacheTime, function () {
-            return User::withTrashed()->orderBy('id', 'DESC')->get();
-        });
-        
-        $this->updateUsersCache();
-
-        
-        $userResources = UserResource::collection($users);
-
-        
-        return response()->json(['users' => $userResources], 200);
-    } catch (\Illuminate\Database\QueryException $e) {
-        
-        return response()->json(['message' => 'Database error occurred while fetching users'], 500);
-    } catch (\Exception $e) {
-        
-        return response()->json(['message' => 'Error occurred while fetching users'], 500);
     }
-}
+    
+
+
 
 private function updateUsersCache()
 {
@@ -76,6 +98,8 @@ private function updateUsersCache()
          return User::withTrashed()->orderBy('id', 'DESC')->get();
     });
 }
+
+
 
     // SYNC ROLES
     public function create()
@@ -87,139 +111,97 @@ private function updateUsersCache()
     return response()->json(['roles' => $roles], 200);
 }
 
+
+
     // STORE USER
    
-public function store(Request $request)
-{
-    // Validar datos de entrada
-    $request->validate([
-        'email' => ['required', 'email', 'unique:users,email'],
-        'username' => ['required', 'unique:users,username'],
-        'password' => ['required', 'min:8'], // Agregar otras reglas de validación según sea necesario
-    ]);
 
-    DB::beginTransaction();
-
-    try {
-        // Preparar los datos de entrada
-        $input = $request->all();
-        $input['password'] = Hash::make($input['password']);
-        $input['uuid'] = Uuid::uuid4()->toString();
-
-        // Crear usuario
-        $user = User::create($input);
-
-        // Sincronizar roles del usuario
-        $this->syncRoles($user, $request->input('role_id'));
-
-        // Obtener el primer rol del usuario y asignarlo a los atributos adicionales
-        $role = $user->roles->first();
-        $user->user_role = $role->name ?? null;
-        $user->role_id = $role->id ?? null;
-
-        // Crear el recurso de usuario
-        $userResource = new UserResource($user, 200);
-
-        // Actualizar caché de usuarios
-        $this->updateUsersCache();
-
-        DB::commit();
-
-        return $userResource;
-
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        DB::rollBack();
-        // Manejar errores de validación
-        return response()->json(['errors' => $e->errors()], 422);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        // Manejar otros errores
-        return response()->json(['message' => 'Error occurred while creating user'], 500);
-    }
-}
-
-
-
-
-    // UPDATE USER
-   public function update(Request $request, $uuid)
-{
-    try {
-        $this->validateUser($request, $uuid);
-
-        $user = User::where('uuid', $uuid)->firstOrFail();
-        $input = $request->all();
-
-        $this->updatePassword($user, $input);
-
-        $user->update($input);
-        $this->syncRoles($user, $request->input('role_id'));
-
-        // Actualizar caché de usuarios
-        $this->updateUsersCache();
-
-        // Devolver el recurso UserResource con la variable $user
-        return new UserResource($user);
-    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-        return response()->json(['message' => 'User not found'], 404);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        return response()->json(['errors' => $e->errors()], 422);
-    } catch (\Exception $e) {
-        return response()->json(['message' => 'Error occurred while updating user'], 500);
-    }
-}
-
-
-
-    // FIELDS VALIDATION RULES
-    private function validateUser(Request $request, $id = null)
+ public function store(CreateUserRequest $request)
     {
-    $rules = [
-        'name' => 'required',
-        'email' => 'required|email|unique:users,email,' . $id,
-        'phone' => 'required|min:6|max:20',
-        'address' => 'required|min:3|max:255',
-        'zip_code' => 'required|min:3|max:255',
-        'city' => 'required|min:3|max:255',
-        'country' => 'required|min:3|max:255',
-        'gender' => 'required|min:3|max:255',
-        'role_id' => 'required',
-    ];
+        // Validar y obtener los detalles de la solicitud
+        $details = $request->validated();
+        $details['uuid'] = Uuid::uuid4()->toString();
 
-    // Añadir reglas de validación para el password solo en ciertos casos
-    if ($id === null || $request->filled('password')) {
-        $rules['password'] = [
-            'sometimes',
-            'nullable',
-            'regex:/^\S+$/',
-            'min:4',
-            'max:20',
-        ];
+        DB::beginTransaction();
+
+        try {
+            // Guardar el usuario en la base de datos
+            $data = $this->usersRepositoryInterface->store($details);
+
+            // Sincronizar roles del usuario
+            $this->syncRoles($data, $details['role_id']);
+
+            // Obtener el primer rol del usuario
+            $role = $data->roles->first(); 
+            $data->user_role = $role->name ?? null;
+            $data->role_id = $role->id ?? null;
+
+            // Actualizar la caché de usuarios
+            $this->updateUsersCache();
+
+            DB::commit();
+
+            // Retornar la respuesta con el usuario creado
+            return ApiResponseClass::sendSimpleResponse(new UserResource($data), 200);
+
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            // Retornar la respuesta de error
+            return response()->json(['message' => 'Error occurred while creating user', 'error' => $ex->getMessage()], 500);
+        }
     }
 
-         $this->validate($request, $rules);
-    }
 
-
-    // SYNC ROLES
-    private function syncRoles(User $user, $roles)
+    // Método para sincronizar roles del usuario
+    protected function syncRoles(User $user, $roleId)
     {
-        $user->roles()->sync($roles);
+        $user->roles()->sync($roleId);
     }
+
+
+
+   // Método para actualizar un usuario
+    public function update(CreateUserRequest $request, $uuid)
+    {
+        // Validar y obtener los detalles de la solicitud
+        $updateDetails = $request->validated();
+
+        DB::beginTransaction();
+
+        try {
+            // Actualizar la contraseña si se proporciona una nueva
+            $this->updatePassword($updateDetails);
+
+            // Actualizar el usuario en la base de datos y obtener el usuario actualizado
+            $user = $this->usersRepositoryInterface->update($updateDetails, $uuid);
+
+            // Sincronizar roles del usuario
+            $this->syncRoles($user, $updateDetails['role_id']);
+
+            // Actualizar la caché de usuarios
+            $this->updateUsersCache();
+
+            DB::commit();
+
+            // Retornar la respuesta con el usuario actualizado
+            return ApiResponseClass::sendSimpleResponse(new UserResource($user), 200);
+
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            return response()->json(['message' => 'Error occurred while updating user', 'error' => $ex->getMessage()], 500);
+        }
+    }
+
 
 
     // UPDATE PASSWORD USER
-    private function updatePassword(User $user, array &$input)
-{
-    
-    if (!empty($input['password'])) {
-        // Encriptar la nueva contraseña
-        $input['password'] = bcrypt($input['password']);
-    } else {
-        // Mantener la contraseña existente
-        $input['password'] = $user->password;
+    private function updatePassword(array &$input)
+    {
+        if (!empty($input['password'])) {
+            // Encriptar la nueva contraseña
+            $input['password'] = bcrypt($input['password']);
+        }
     }
-}
 
 
     // SHOW PROFILE USER
@@ -229,16 +211,13 @@ public function store(Request $request)
         $cacheKey = 'user_' . $uuid;
         
         // Buscar el usuario en caché o en la base de datos
+
         $user = $this->getCachedData($cacheKey, $this->cacheTime, function () use ($uuid) {
-            return User::withTrashed()->where('uuid', $uuid)->first();
+            return $this->usersRepositoryInterface->getByUuid($uuid);
         });
 
-        if (!$user) {
-            return response()->json(['message' => 'User not found'], 404);
-        }
+        return ApiResponseClass::sendSimpleResponse(new UserResource($user),'',200);
 
-        // Devolver una respuesta JSON con el recurso UserResource del usuario
-        return response()->json(['user' => new UserResource($user)], 200);
     } catch (\Exception $e) {
         // Manejar cualquier excepción y devolver una respuesta de error
         return response()->json(['message' => 'Error occurred while fetching user'], 500);
@@ -248,34 +227,18 @@ public function store(Request $request)
 
 
 
-
-    public function edit($id)
-    {
-        $user = User::find($id);
-        $roles = Role::pluck('name', 'name')->all();
-        $userRole = $user->roles->pluck('name', 'name')->all();
-
-        return response()->json(['user' => $user, 'roles' => $roles, 'userRole' => $userRole], $user ? 200 : 404);
-    }
-
-
-
-
-
     // USER DELETE
     public function destroy($uuid)
 {
     try {
-        // Buscar el usuario por su UUID
-        $user = User::where('uuid', $uuid)->firstOrFail();
 
-        // Eliminar el usuario (soft delete)
-        $user->delete();
 
-        // Invalidar el caché del usuario
+        $this->usersRepositoryInterface->delete($uuid);
+         // Invalidar el caché del usuario
         $this->invalidateCache('user_' . $uuid);
+        return ApiResponseClass::sendResponse('User Delete Successful','',200);
 
-        return response()->json(['message' => 'User deleted successfully'], 200);
+
     } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
         // Manejar el caso donde el usuario no fue encontrado
         return response()->json(['message' => 'User not found'], 404);
@@ -286,45 +249,29 @@ public function store(Request $request)
 }
 
 
-
+// USER RESTORE
 public function restore($uuid)
-{
-    try {
-        // Validar si el UUID proporcionado es válido
-        if (!Uuid::isValid($uuid)) {
-            return response()->json(['message' => 'Invalid UUID'], 400);
+    {
+        try {
+            // Usar el repositorio para restaurar el usuario
+            $user = $this->usersRepositoryInterface->restore($uuid);
+
+            // Invalidar la caché del usuario
+            $this->invalidateCache('user_' . $uuid);
+
+            // Actualizar la caché de la lista de usuarios
+            $this->updateUsersCache();
+
+            // Enviar la respuesta utilizando el método simplificado
+            return ApiResponseClass::sendSimpleResponse(new UserResource($user), 200);
+        } catch (\InvalidArgumentException $e) {
+            // Manejar errores de validación del UUID
+            return response()->json(['message' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            // Manejar cualquier otra excepción
+            return response()->json(['message' => $e->getMessage()], 500);
         }
-
-        // Buscar el usuario eliminado con el UUID proporcionado
-        $user = User::where('uuid', $uuid)->onlyTrashed()->first();
-
-        if (!$user) {
-            return response()->json(['message' => 'User not found in trash'], 404);
-        }
-
-        // Verificar si el usuario ya ha sido restaurado
-        if (!$user->trashed()) {
-            return response()->json(['message' => 'User already restored'], 400);
-        }
-
-        
-        $user->restore();
-
-        // Invalidar el caché del usuario
-        $this->invalidateCache('user_' . $uuid);
-       
-        $this->updateUsersCache();
-
-       
-        return response()->json([
-            'message' => 'User restored successfully',
-            'user' => new UserResource($user)
-        ], 200);
-    } catch (\Exception $e) {
-        // Manejar cualquier excepción y devolver una respuesta de error
-        return response()->json(['message' => 'Error occurred while restoring User'], 500);
     }
-}
 
 
 

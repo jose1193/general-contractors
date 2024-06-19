@@ -77,15 +77,18 @@ Route::middleware(['auth.routes','handle.notfound','token.auth'])->group(functio
     Route::get('roles-permissions', [RoleController::class, 'create']); // Mostrar listado de permisos
     Route::get('roles/{id}/edit', [RoleController::class, 'edit']); // Mostrar listado de roles y permisos del usuario a editar
 
-    // Rutas relacionadas con usuarios
-    Route::get('users-list', [UsersController::class, 'index']); 
-    Route::post('users-store', [UsersController::class, 'store']); 
-    Route::get('users-profile/{uuid}', [UsersController::class, 'show']); 
-    Route::put('users-update/{uuid}', [UsersController::class, 'update']); 
-    Route::delete('users-delete/{id}', [UsersController::class, 'destroy']); 
-    Route::get('users-create', [UsersController::class, 'create']); 
-    Route::get('users-list/{uuid}/edit', [UsersController::class, 'edit']); 
-    Route::put('users-restore/{uuid}', [UsersController::class, 'restore']); 
+    
+    // Routes related to Users
+    Route::prefix('users')->group(function () {
+    Route::get('/', [UsersController::class, 'index']);    
+    Route::post('/store', [UsersController::class, 'store']); 
+    Route::get('/{uuid}', [UsersController::class, 'show']); 
+    Route::put('/update/{uuid}', [UsersController::class, 'update']); 
+    Route::post('/update-images/{uuid}/', [UsersController::class, 'updateImage']); 
+    Route::delete('delete/{uuid}', [UsersController::class, 'destroy']);
+    Route::put('restore/{uuid}', [UsersController::class, 'restore']);  
+    
+    }); 
 
     // Rutas relacionadas con permisos
     Route::get('permissions-list', [PermissionController::class, 'index']);
