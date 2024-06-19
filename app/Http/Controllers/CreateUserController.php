@@ -74,13 +74,22 @@ class CreateUserController extends Controller
 private function handleUserProfilePhoto(CreateUserRequest $request, User $user)
 {
     if ($request->hasFile('photo')) {
-        $photoPath = ImageHelper::storeAndResize($request->file('photo'), 'public/profile-photos');
-        // Asegurarse de que la foto solo se asigne si se ha guardado correctamente.
+        $file = $request->file('photo');
+        if (!$file->isValid()) {
+            // Manejar el caso en que la subida del archivo no sea válida
+            return response()->json(['error' => 'Uploaded file is not valid'], 400);
+        }
+
+        $photoPath = ImageHelper::storeAndResize($file, 'public/profile-photos');
         if ($photoPath) {
             $user->update(['profile_photo_path' => $photoPath]);
         }
+    } else {
+        // Manejar el caso en que no haya un archivo de imagen en el request
+        return response()->json(['error' => 'No photo file in request'], 400);
     }
 }
+
 
 private function createUser(array $data): User
 {
