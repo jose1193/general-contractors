@@ -50,7 +50,7 @@ class BaseController extends Controller
     }
 
 
-    protected function getCachedData(string $key, int $minutes, callable $callback)
+    public function getCachedData(string $key, int $minutes, callable $callback)
     {
         return Cache::remember($key, $minutes, $callback);
     }
@@ -77,7 +77,7 @@ class BaseController extends Controller
         $this->updateCache($cacheKey, $cacheTime, $dataCallback);
     }
 
-    protected function invalidateCache(string $key): void
+    public function invalidateCache(string $key): void
     {
         Cache::forget($key);
     }

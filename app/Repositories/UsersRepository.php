@@ -48,13 +48,11 @@ class UsersRepository implements UsersRepositoryInterface
      */
     public function update(array $data, $uuid)
     {
-        // Buscar el usuario por UUID
+       
         $user = User::where('uuid', $uuid)->firstOrFail();
-
-        // Actualizar el usuario con los nuevos datos
         $user->update($data);
 
-        // Retornar el usuario actualizado
+        
         return $user;
     }
 
