@@ -23,7 +23,7 @@ use Illuminate\Foundation\Bus\DispatchesJobs;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Routing\Controller as BaseController;
 
-use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Cache;
 
 class AuthController extends BaseController
 {
@@ -33,45 +33,37 @@ class AuthController extends BaseController
 // USER LOGIN
     
     public function login(LoginRequest $request)
-    {
-        $user = User::where('email', $request->email)->firstOrFail();
-
-        if (!Hash::check($request->password, $user->password)) {
-            return $this->sendFailedLoginResponse();
-        }
-
-        $token = $this->createTokenForUser($user, $request->filled('remember'));
-        $cookie = $this->createCookieForToken($token);
-
-        $this->cacheUser($user);
-
-        return $this->sendSuccessLoginResponse($user, $token)->withCookie($cookie);
-    }
-
-    // Private methods for token and cookie creation
-    private function createTokenForUser($user, $remember = false)
-    {
-        $token = $user->createToken('auth_token')->plainTextToken;
-        if ($remember) {
-            $rememberToken = Str::random(60);
-            $user->forceFill(['remember_token' => hash('sha256', $rememberToken)])->save();
-        }
-        return $token;
-    }
-
-    private function createCookieForToken($token)
 {
-    return cookie(
-        'token', 
-        $token, 
-        60 * 24 * 365, // 1 año
-        '/', // Path
-       null, // Dominio, asegúrate de incluir el punto para todos los subdominios
-        false, // Secure (true para HTTPS)
-        true, // HttpOnly
-        false, // Raw
-        'None' // SameSite (permite solicitudes de origen cruzado)
-    );
+    $loginField = filter_var($request->input('email'), FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+
+    $user = User::where($loginField, $request->input('email'))->firstOrFail();
+
+    if (!Hash::check($request->password, $user->password)) {
+        return $this->sendFailedLoginResponse();
+    }
+
+    $token = $this->createTokenForUser($user, $request->filled('remember'));
+    //$cookie = $this->createCookieForToken($token);
+
+    $this->cacheUser($user);
+
+    return $this->sendSuccessLoginResponse($user, $token);
+}
+
+   // Private methods for token and cookie creation
+private function createTokenForUser($user, $remember = false)
+{
+    $token = $user->createToken('auth_token')->plainTextToken;
+    if ($remember) {
+        $rememberToken = Str::random(60);
+        $user->forceFill(['remember_token' => hash('sha256', $rememberToken)])->save();
+    }
+    return $token;
+}
+
+
+private function createCookieForToken($token) {
+     return cookie('token', $token, 60 * 24 * 365); 
 }
 
 
@@ -88,7 +80,7 @@ class AuthController extends BaseController
         'token_type' => 'Bearer',
         'token_created_at' => $user->tokens()->where('name', 'auth_token')->first()->created_at->format('Y-m-d H:i:s'),
         'user' => new UserResource($user),
-    ], 200)->withCookie($this->createCookieForToken($tokenString));
+    ], 200);
 }
 
 
@@ -155,7 +147,7 @@ public function user(Request $request)
 
             $this->cacheUser($user);
 
-            return response()->json(['message' => 'Password updated successfully']);
+            return response()->json(['success' => 'Password updated successfully']);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 422);
         } catch (\Exception $e) {
@@ -165,28 +157,72 @@ public function user(Request $request)
 
     
     // Private method to cache user data
-    private function cacheUser($user)
+private function cacheUser($user)
 {
     $user->load('roles'); // Cargar roles u otras relaciones necesarias
-    Redis::set('user:' . $user->id, serialize($user));
-    Redis::expire('user:' . $user->id, 60 * 60 * 24); // Cache for 1 day
+    Cache::put('user:' . $user->id, $user, 60 * 60 * 24); // Cache for 1 day
 }
 
-
-    private function getCachedUser($userId)
-    {
-    $cachedUser = Redis::get('user:' . $userId);
+private function getCachedUser($userId)
+{
+    $cachedUser = Cache::get('user:' . $userId);
     if ($cachedUser) {
-        return unserialize($cachedUser);
+        return $cachedUser;
     }
 
     $user = User::findOrFail($userId);
     $this->cacheUser($user);
 
     return $user;
+}
+
+
+ public function checkEmailAvailability($email)
+{
+   
+
+    // Obtener el usuario actualmente autenticado
+    $currentUser = auth()->user();
+
+    // Verificar si el correo pertenece al usuario autenticado
+    if ($currentUser && $currentUser->email === $email) {
+        return response()->json([
+            'available' => true,
+            'message' => ''
+        ], 200);
     }
 
+    // Verificar si el correo ya está en la base de datos
+    $exists = User::where('email', $email)->exists();
 
+    return response()->json([
+        'available' => !$exists,
+        'message' => $exists ? 'Email is already taken' : 'Email is available'
+    ], 200);
+}
 
+public function checkUsernameAvailability($username)
+{
+   
+
+    // Obtener el usuario actualmente autenticado
+    $currentUser = auth()->user();
+
+    // Verificar si el nombre de usuario pertenece al usuario autenticado
+    if ($currentUser && $currentUser->username === $username) {
+        return response()->json([
+            'available' => true,
+            'message' => ''
+        ], 200);
+    }
+
+    // Verificar si el nombre de usuario ya está en la base de datos
+    $exists = User::where('username', $username)->exists();
+
+    return response()->json([
+        'available' => !$exists,
+        'message' => $exists ? 'Username is already taken' : 'Username is available'
+    ], 200);
+}
 
 }

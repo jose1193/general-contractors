@@ -10,7 +10,7 @@ export default function SpanOr() {
           darkMode ? "bg-[#121212]" : "bg-white"
         }`}
       >
-        Or continue with
+        Or
       </p>
     </div>
   );

@@ -12,13 +12,14 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+
     "plugins": [
       {
         "name": "next"
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
@@ -26,7 +27,8 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "ui/StyleRoot.tsx" // Asegúrate de incluir la ruta correcta aquí si es necesario
+    "ui/StyleRoot.tsx"
   ],
+
   "exclude": ["node_modules"]
 }

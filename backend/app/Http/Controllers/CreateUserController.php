@@ -55,6 +55,9 @@ class CreateUserController extends Controller
         // Confirmar todas las operaciones.
         DB::commit();
 
+         // Crear una cookie con el token
+        $cookie = $this->createCookieForToken($tokenData['token']);
+
         // Devolver respuesta exitosa con datos del usuario y token.
         return response()->json([
             'message' => 'User created successfully',
@@ -100,7 +103,7 @@ private function createUser(array $data): User
 
 private function assignUserRole(array $data, User $user)
 {
-    $role = Role::find($data['role_id']);
+    $role = Role::find($data['user_role']);
     if (!$role) {
         throw new \Exception('Invalid role ID');
     }
@@ -133,6 +136,10 @@ private function createUserToken(User $user): array
     $formattedTokenCreatedAt = $token ? $token->created_at->format('Y-m-d H:i:s') : null;
 
     return ['token' => explode('|', $userToken)[1], 'created_at' => $formattedTokenCreatedAt];
+}
+
+private function createCookieForToken($token) {
+     return cookie('token', $token, 60 * 24 * 365); 
 }
 
 //protected function createUser(array $input): User
@@ -226,8 +233,8 @@ private function validateUsername($data, $user)
 
 private function validateRoleId($data)
 {
-    if (isset($data['role_id'])) {
-        $roleExists = Role::where('id', $data['role_id'])->exists();
+    if (isset($data['user_role'])) {
+        $roleExists = Role::where('id', $data['user_role'])->exists();
         if (!$roleExists) {
             response()->json(['message' => 'Role ID does not exist'], 409)->throwResponse();
         }

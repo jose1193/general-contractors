@@ -72,24 +72,31 @@ class ImageHelper
 
 
     //DELETE IMAGE FROM STORAGE
-public static function deleteFileFromStorage($filePath)
+public static function deleteFileFromStorage($fullUrl)
 {
-    // Obtener la URL base desde la variable de entorno
-    $baseUrl = env('AWS_URL');
+    // Extraer la ruta relativa de la URL completa
+    $parsedUrl = parse_url($fullUrl);
+    $relativePath = ltrim($parsedUrl['path'], '/');
 
-    // Asegurarse de que la URL base termina con una barra diagonal para la comparación
-    if (substr($baseUrl, -1) !== '/') {
-        $baseUrl .= '/';
-    }
+    // Eliminar el nombre del bucket si está presente en la ruta
+    $bucketName = env('AWS_BUCKET');
+    $relativePath = preg_replace("/^{$bucketName}\//", '', $relativePath);
 
-    // Extraer el path relativo de la URL completa de S3
-    $path = str_replace($baseUrl, '', $filePath);
-
-    // Comprobar si el archivo existe en S3 y eliminarlo
-    if (Storage::disk('s3')->exists($path)) {
-        Storage::disk('s3')->delete($path);
+    try {
+        if (Storage::disk('s3')->exists($relativePath)) {
+            $deleted = Storage::disk('s3')->delete($relativePath);
+           
+            return $deleted;
+        } else {
+            \Log::warning("El archivo no existe en S3: {$relativePath}");
+            return false;
+        }
+    } catch (\Exception $e) {
+        \Log::error("Error al eliminar archivo de S3: {$relativePath}. Error: " . $e->getMessage());
+        return false;
     }
 }
+
 
 
 
@@ -106,5 +113,80 @@ public static function deleteFileFromStorage($filePath)
         return null;  // Retorna null o maneja el error como sea apropiado.
     }
 }
+
+
+
+
+
+public static function storeFile($file, $storagePath)
+{
+    // Generar un nombre de archivo único con la extensión original
+    $uniqueFileName = self::generateUniqueFileName() . '.' . $file->getClientOriginalExtension();
+
+    // Definir la ruta de destino en S3
+    $s3Path = $storagePath . '/' . $uniqueFileName;
+
+    // Subir el archivo a S3 usando el método adecuado para manejar archivos subidos
+    Storage::disk('s3')->put($s3Path, fopen($file->getRealPath(), 'r+'));
+
+    // Retornar la URL del archivo en S3
+    return Storage::disk('s3')->url($s3Path);
+}
+
+public static function storeSignatureInS3($signatureData, $storagePath)
+{
+    // Decodificar la firma en base64
+    $imageData = base64_decode($signatureData);
+
+    // Crear una imagen a partir de los datos decodificados
+    $image = Image::make($imageData);
+
+    // Redimensionar la imagen y guardarla temporalmente
+    $resizedImagePath = self::resizeAndStoreTempImage($image);
+
+    // Generar un nombre de archivo único
+    $uniqueFileName = self::generateUniqueFileName() . '.png';
+
+    // Definir la ruta de destino en S3
+    $s3Path = $storagePath . '/' . $uniqueFileName;
+
+    // Subir la imagen redimensionada a S3
+    Storage::disk('s3')->put($s3Path, file_get_contents($resizedImagePath));
+
+    // Eliminar la imagen temporal redimensionada
+    unlink($resizedImagePath);
+
+    // Retornar la URL del archivo en S3
+    return Storage::disk('s3')->url($s3Path);
+}
+
+
+
+public static function storePDFAgreement($pdfContent, $storagePath)
+{
+    // Definir la ruta de destino en S3
+    $s3Path = $storagePath;
+
+    // Subir el archivo a S3 directamente desde el contenido del PDF
+    Storage::disk('s3')->put($s3Path, $pdfContent);
+
+    // Retornar la URL del archivo en S3
+    return Storage::disk('s3')->url($s3Path);
+}
+
+
+//public static function storePDFAgreement($pdf, $storagePath)
+//{
+    // Definir la ruta de destino en S3
+    //$s3Path = $storagePath;
+
+    // Subir el archivo a S3 directamente desde el contenido del PDF
+    //Storage::disk('s3')->put($s3Path, $pdf->output());
+
+    // Retornar la URL del archivo en S3
+    //return Storage::disk('s3')->url($s3Path);
+//}
+
+
 
 }

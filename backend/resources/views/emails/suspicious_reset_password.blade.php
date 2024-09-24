@@ -335,7 +335,7 @@
                                                             <div
                                                                 style="
                                     font-size: 14px;
-                                    color: #79005d;
+                                    color: #000000;
                                     line-height: 50%;
                                     text-align: center;
                                     word-wrap: break-word;
@@ -443,7 +443,7 @@
                                                                     <span
                                                                         style="font-size: 16px; line-height: 32px">Sincerely,<br /><strong><span
                                                                                 style="
-                                            color: #79005d;
+                                            color: #000000;
                                             line-height: 28px;
                                           ">Foodly</span></strong></span>
                                                                 </p>
@@ -473,7 +473,7 @@
                   overflow-wrap: break-word;
                   word-wrap: break-word;
                   word-break: break-word;
-                  background-color: #79005d;
+                  background-color: #000000;
                 ">
                             <div
                                 style="
@@ -691,8 +691,8 @@
                                     word-wrap: break-word;
                                   ">
                                                                 <p style="font-size: 14px; line-height: 170%">
-                                                                    <br />Email:support@foodly.world<br />Your Street
-                                                                    12, 34567 AB City
+                                                                    <br />Email:vgeneralcontractors30@gmail.com<br />
+                                                                    1302 Waugh Dr # 810 Houston TX 77019
                                                                 </p>
                                                             </div>
                                                         </td>

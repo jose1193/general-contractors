@@ -1,56 +1,105 @@
-import * as React from "react";
-import Avatar from "@mui/material/Avatar";
-import Button from "@mui/material/Button";
-import CssBaseline from "@mui/material/CssBaseline";
-import TextField from "@mui/material/TextField";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Checkbox from "@mui/material/Checkbox";
-import Link from "@mui/material/Link";
-import Grid from "@mui/material/Grid";
-import Box from "@mui/material/Box";
+"use client";
+
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import {
+  Avatar,
+  Button,
+  Checkbox,
+  Container,
+  CssBaseline,
+  FormControlLabel,
+  Grid,
+  Link,
+  TextField,
+  Typography,
+  Box,
+  InputAdornment,
+  IconButton,
+  Snackbar,
+  Alert,
+} from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import Typography from "@mui/material/Typography";
-import Container from "@mui/material/Container";
-import IconButton from "@mui/material/IconButton";
-import InputAdornment from "@mui/material/InputAdornment";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
-
-import ButtonGoogle from "../components/ButtonGoogle";
-
-import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
+import { Formik, Form, Field } from "formik";
+import ButtonGoogle from "../components/ButtonGoogle";
+import { useTheme } from "@mui/material/styles";
+import CircularProgress from "@mui/material/CircularProgress";
+import AccountCircle from "@mui/icons-material/AccountCircle";
 
 const SignInSchema = Yup.object().shape({
-  email: Yup.string().email("Invalid email").required("Required"),
-  password: Yup.string()
-    .min(6, "Too Short!")
-    .max(50, "Too Long!")
-    .required("Required"),
+  email: Yup.string().max(35).required("Required"),
+  password: Yup.string().min(6, "Password too short").required("Required"),
 });
 
-function SignIn() {
-  const [showPassword, setShowPassword] = React.useState(false);
+export default function SignIn() {
+  const theme = useTheme();
+  const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success" as "success" | "error",
+  });
 
-  const handleClickShowPassword = () => setShowPassword((show) => !show);
-
+  const handleClickShowPassword = () => setShowPassword(!showPassword);
   const handleMouseDownPassword = (
     event: React.MouseEvent<HTMLButtonElement>
   ) => {
     event.preventDefault();
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    console.log({
-      email: data.get("email"),
-      password: data.get("password"),
-    });
+  const handleSnackbarClose = (
+    event?: React.SyntheticEvent | Event,
+    reason?: string
+  ) => {
+    if (reason === "clickaway") {
+      return;
+    }
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  const handleSignIn = async (
+    values: { email: string; password: string },
+    { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void }
+  ) => {
+    try {
+      const result = await signIn("credentials", {
+        redirect: false,
+        email: values.email,
+        password: values.password,
+      });
+
+      if (result?.error) {
+        setSnackbar({
+          open: true,
+          message: "Invalid credentials",
+          severity: "error",
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: "Authentication successful!",
+          severity: "success",
+        });
+        router.push("/dashboard");
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: "An error occurred during sign in",
+        severity: "error",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <Container component="main" maxWidth="xs">
+    <Container component="main" maxWidth={false} sx={{ maxWidth: "600px" }}>
       <CssBaseline />
       <Box
         sx={{
@@ -58,21 +107,26 @@ function SignIn() {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
+          backgroundColor:
+            theme.palette.mode === "light"
+              ? "#ffffff"
+              : theme.palette.background.paper,
+          padding: { xs: 3, sm: 4, md: 5 },
+          borderRadius: "16px",
+          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          border: "1px solid rgba(255, 255, 255, 0.2)",
         }}
       >
         <Avatar sx={{ m: 1, bgcolor: "secondary.main" }}>
           <LockOutlinedIcon />
         </Avatar>
-        <Typography component="h1" variant="h5">
+        <Typography component="h1" variant="h5" sx={{ mb: 3 }}>
           Sign in
         </Typography>
         <Formik
           initialValues={{ email: "", password: "", remember: false }}
           validationSchema={SignInSchema}
-          onSubmit={(values, { setSubmitting }) => {
-            console.log(values);
-            setSubmitting(false);
-          }}
+          onSubmit={handleSignIn}
         >
           {({
             isSubmitting,
@@ -87,21 +141,30 @@ function SignIn() {
                 margin="normal"
                 required
                 fullWidth
+                sx={{ mb: 3 }}
                 id="email"
                 label="Email Or Username"
                 name="email"
-                autoComplete="email"
+                autoComplete="off"
                 autoFocus
                 value={values.email}
                 onChange={handleChange}
                 onBlur={handleBlur}
                 error={touched.email && Boolean(errors.email)}
                 helperText={touched.email && errors.email}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <AccountCircle />
+                    </InputAdornment>
+                  ),
+                }}
               />
               <TextField
                 margin="normal"
                 required
                 fullWidth
+                sx={{ mb: 3 }}
                 name="password"
                 label="Password"
                 type={showPassword ? "text" : "password"}
@@ -113,6 +176,11 @@ function SignIn() {
                 error={touched.password && Boolean(errors.password)}
                 helperText={touched.password && errors.password}
                 InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockOutlinedIcon />
+                    </InputAdornment>
+                  ),
                   endAdornment: (
                     <InputAdornment position="end">
                       <IconButton
@@ -137,28 +205,31 @@ function SignIn() {
                 type="submit"
                 fullWidth
                 variant="contained"
-                sx={{ mt: 3, mb: 2 }}
+                sx={{ mt: 3, mb: 2, height: 48 }}
                 disabled={isSubmitting}
               >
-                Sign In
+                {isSubmitting ? (
+                  <>
+                    <CircularProgress
+                      size={24}
+                      color="inherit"
+                      sx={{ mr: 1 }}
+                    />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
               <Grid container>
-                <Grid item xs>
-                  <Link
-                    href="#"
-                    style={{ textDecoration: "none" }}
-                    variant="body2"
-                  >
-                    Forgot password?
-                  </Link>
-                </Grid>
+                <Grid item xs></Grid>
                 <Grid item>
                   <Link
-                    href="#"
-                    style={{ textDecoration: "none" }}
+                    href="auth/forgot-password"
                     variant="body2"
+                    sx={{ textDecoration: "none" }}
                   >
-                    {"Don't have an account? "}
+                    Forgot password?
                   </Link>
                 </Grid>
               </Grid>
@@ -167,6 +238,20 @@ function SignIn() {
           )}
         </Formik>
       </Box>
+      <Snackbar
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
       <Typography
         variant="body2"
         color="text.secondary"
@@ -175,14 +260,13 @@ function SignIn() {
       >
         {"Copyright © "}
         <Link
-          color="inherit"
-          style={{ textDecoration: "none" }}
+          sx={{ textDecoration: "none", fontWeight: "bold", p: 1 }}
           href="https://vgeneralcontractors.com/"
-        ></Link>{" "}
+        >
+          {process.env.NEXT_PUBLIC_COMPANY_NAME || "V General Contractors"}
+        </Link>{" "}
         {new Date().getFullYear()}
       </Typography>
     </Container>
   );
 }
-
-export default SignIn;

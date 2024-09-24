@@ -5,7 +5,7 @@ import { Button } from "@mui/material";
 import { useTheme } from "../ui/StyledRoot";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
-
+import LightModeIcon from "@mui/icons-material/LightMode";
 const ThemeToggleButton: React.FC = () => {
   const { darkMode, toggleTheme } = useTheme();
 
@@ -13,7 +13,7 @@ const ThemeToggleButton: React.FC = () => {
     <Button
       variant="text"
       color="primary"
-      startIcon={darkMode ? <Brightness7Icon /> : <DarkModeIcon />}
+      startIcon={darkMode ? <LightModeIcon /> : <DarkModeIcon />}
       onClick={toggleTheme}
     ></Button>
   );

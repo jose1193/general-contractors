@@ -302,7 +302,7 @@
                                                             <div
                                                                 style="
                                     font-size: 14px;
-                                    color: #79005d;
+                                    color: #000000;
                                     line-height: 170%;
                                     text-align: left;
                                     word-wrap: break-word;
@@ -346,7 +346,7 @@
                                           sans-serif;
                                       ">Hello,
                                                                         <span
-                                                                            style="color:#79005d;font-weight:bold;">{{ $user->name }}</span></span>
+                                                                            style="color:#000000;font-weight:bold;">{{ $user->name }}</span></span>
                                                                 </p>
                                                                 <br>
                                                                 <p
@@ -385,7 +385,7 @@
                                       "><strong>
                                                                             <span
                                                                                 style="
-                                            color: #79005d;
+                                            color: #000000;
                                             line-height: 30.6px;
                                             font-family: arial, helvetica,
                                               sans-serif;
@@ -425,7 +425,7 @@
                                                             <div
                                                                 style="
                                     font-size: 14px;
-                                    color: #79005d;
+                                    color: #000000;
                                     line-height: 70%;
                                     text-align: left;
                                     word-wrap: break-word;
@@ -516,7 +516,7 @@
                                                             <div
                                                                 style="
                                     font-size: 14px;
-                                    color: #79005d;
+                                    color: #000000;
                                     line-height: 140%;
                                     text-align: left;
                                     word-wrap: break-word;
@@ -571,7 +571,7 @@
                                             line-height: 34px;
                                             font-size: 20px;
                                           ">Download
-                                                                                and Enjoy!</span></strong></span>
+                                                                            </span></strong></span>
                                                                 </p>
                                                             </div>
                                                         </td>
@@ -960,7 +960,7 @@
                   overflow-wrap: break-word;
                   word-wrap: break-word;
                   word-break: break-word;
-                  background-color: #79005d;
+                  background-color: #000000;
                 ">
                             <div
                                 style="
@@ -1315,7 +1315,8 @@
                                           -ms-text-size-adjust: 100%;
                                           -webkit-text-size-adjust: 100%;
                                         ">
-                                                                            <span>&#160;</span>
+                                                                            <span>&#160; 1302 Waugh Dr # 810 Houston TX
+                                                                                77019</span>
                                                                         </td>
                                                                     </tr>
                                                                 </tbody>
@@ -1349,8 +1350,8 @@
                                                                         style="
                                         font-family: Arial;
                                         line-height: 19.6px;
-                                      ">Your
-                                                                        Street 12, 34567 AB City
+                                      ">
+                                                                        1302 Waugh Dr # 810 Houston TX 77019
 
 
                                                                     </span>
