@@ -70,20 +70,20 @@ services:
       retries: 3
       timeout: 5s
 
-#  nextjs:
-#    image: node:20-alpine # Puedes usar otra imagen de Node.js que prefieras
-#    working_dir: /app/frontend
-#    ports:
-#      - "3000:3000"
-#    environment:
-#      NODE_ENV: development
-#    volumes:
-#      - "./frontend:/app/frontend"
-#    command: npm run dev # Comando para ejecutar npm run dev en el contenedor
-#    networks:
-#      - sail
-#    depends_on:
-#      - laravel.test # Dependencia opcional, si Next.js necesita Laravel para algunos servicios
+  nextjs:
+    image: node:20-alpine # Puedes usar otra imagen de Node.js que prefieras
+    working_dir: /app/frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+    volumes:
+      - "./frontend:/app/frontend"
+    command: npm run dev # Comando para ejecutar npm run dev en el contenedor
+    networks:
+      - sail
+    depends_on:
+      - laravel.test # Dependencia opcional, si Next.js necesita Laravel para algunos servicios
 
 networks:
   sail:
